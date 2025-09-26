@@ -1,36 +1,35 @@
 import os
 import smtplib
+import requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 import sqlite3
-from flask import Flask, request, jsonify, g
-from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app)
 
 app.config.update(
     DATABASE='bookings.db',
-    BOOKINGS_PER_DAY_LIMIT
+    BOOKINGS_PER_DAY_LIMIT=5
 )
 
-NOTIFY_PHONE_NUMBER = os.getenv('+17755071747')  # e.g. '+15555551234'
-
-
+# Email config via environment variables
 EMAIL_HOST = os.getenv('smtp.mail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
 EMAIL_HOST_USER = os.getenv('frostydasnowman00911@mail.com')
 EMAIL_HOST_PASSWORD = os.getenv('AtH3nA818!')
-NOTIFY_EMAIL_TO = os.getenv('frostydasnowman00911@mail.com')
+NOTIFY_EMAIL_TO = os.getenv('frostydasnowman00811@mail.com')
+
+# SMS gateway config from Android SMS Gateway provider
+SMS_API_KEY = os.getenv('d4b59066-c804-4f3c-a36e-6744b29b4c6a')
+SMS_DEVICE_ID = os.getenv('68d675e53b8a4d33b1cf2c42')
+NOTIFY_PHONE_NUMBER = os.getenv('+17755071747')
 
 def get_db():
     if 'db' not in g:
-        g.db = sqlite3.connect(
-            app.config['DATABASE'],
-            detect_types=sqlite3.PARSE_DECLTYPES
-        )
+        g.db = sqlite3.connect(app.config['DATABASE'], detect_types=sqlite3.PARSE_DECLTYPES)
         g.db.row_factory = sqlite3.Row
     return g.db
 
@@ -57,20 +56,40 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         db.commit()
-        init_reviews_table()
 
-def init_reviews_table():
-    db = get_db()
-    db.execute('''
-        CREATE TABLE IF NOT EXISTS reviews (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            text TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    db.commit()
+def send_email(subject, body, to_email=NOTIFY_EMAIL_TO):
+    msg = MIMEMultipart()
+    msg['From'] = EMAIL_HOST_USER
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+    try:
+        with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
+            server.send_message(msg)
+    except Exception as e:
+        app.logger.error(f"Failed to send email: {e}")
+
+def send_sms(message, phone=NOTIFY_PHONE_NUMBER):
+    url = f'https://api.textbee.dev/api/v1/gateway/devices/{SMS_DEVICE_ID}/send-sms'
+    headers = {'x-api-key': SMS_API_KEY}
+    payload = {'recipients': [phone], 'message': message}
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        if not response.ok:
+            app.logger.error(f"SMS sending failed: {response.text}")
+    except Exception as e:
+        app.logger.error(f"SMS sending exception: {e}")
 
 @app.route('/api/bookings', methods=['POST'])
 def add_booking():
@@ -87,11 +106,15 @@ def add_booking():
         return jsonify({'error': 'Name, email, datetime, and service are required'}), 400
 
     db = get_db()
-    db.execute(
-        'INSERT INTO bookings (name, email, phone, datetime, service, location, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        (name, email, phone, datetime_str, service, location, notes)
-    )
+    db.execute('''INSERT INTO bookings (name, email, phone, datetime, service, location, notes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
+               (name, email, phone, datetime_str, service, location, notes))
     db.commit()
+
+    # Send notification emails and SMS
+    send_email('New Booking', f'New booking from {name} at {datetime_str} for {service}')
+    send_sms(f'New booking from {name} at {datetime_str} for {service}')
+
     return jsonify({'message': 'Booking added successfully'}), 201
 
 @app.route('/api/reviews', methods=['GET'])
@@ -112,6 +135,11 @@ def add_review():
     db = get_db()
     db.execute('INSERT INTO reviews (name, text) VALUES (?, ?)', (name, text))
     db.commit()
+
+    # Send notification emails and SMS
+    send_email('New Review', f'New review from {name}: {text}')
+    send_sms(f'New review from {name}: {text}')
+
     return jsonify({'name': name, 'text': text}), 201
 
 if __name__ == '__main__':
