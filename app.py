@@ -17,7 +17,7 @@ app.config.update(
     BOOKINGS_PER_DAY_LIMIT=5
 )
 MAILCHIMP_API_KEY = os.getenv('MAILCHIMP_API_KEY')
-MAILCHIMP_SERVER_PREFIX = os.getenv('us19')  # e.g., 'us19'
+MAILCHIMP_SERVER_PREFIX = os.getenv('us18')  # e.g., 'us19'
 MAILCHIMP_AUDIENCE_ID = os.getenv('fab4ff600a')
 
 @app.route('/submit-email', methods=['POST'])
@@ -27,7 +27,7 @@ def submit_email():
     if not email or '@' not in email:
         return jsonify({'error': 'Valid email required'}), 400
 
-    url = f'https://us19.api.mailchimp.com/3.0/lists/fab4ff600a/members'
+    url = f'https://us18.api.mailchimp.com/3.0/lists/fab4ff600a/members'
     headers = {
         'Content-Type': 'application/json'
     }
