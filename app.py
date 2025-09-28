@@ -14,6 +14,13 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+# Configure logger to write to file with rotation (max 1MB, keep 3 backups)
+handler = RotatingFileHandler('submissions.log', maxBytes=1_000_000, backupCount=3)
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
+handler.setFormatter(formatter)
+app.logger.addHandler(handler)
+
 app.config.update(
     DATABASE='bookings.db',
     BOOKINGS_PER_DAY_LIMIT=5
