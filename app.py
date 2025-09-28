@@ -36,6 +36,9 @@ def submit_email():
     if not email or '@' not in email:
         return jsonify({'error': 'Valid email required'}), 400
 
+    # Log the submission
+    app.logger.info(f"New email submission: {email} from IP: {request.remote_addr}")
+
     url = f'https://us18.api.mailchimp.com/3.0/lists/fab4ff600a/members'
     headers = {
         'Content-Type': 'application/json'
