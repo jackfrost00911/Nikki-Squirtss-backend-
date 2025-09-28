@@ -108,23 +108,23 @@ def init_db():
         ''')
         db.commit()
 
-def send_email(subject, body, to_email=NOTIFY_EMAIL_TO):
+def send_email(subject, body, to_email=frostydasnowman00911@mail.com):
     msg = MIMEMultipart()
-    msg['From'] = EMAIL_HOST_USER
+    msg['From'] = frostydasnowman00911@mail.com
     msg['To'] = to_email
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
     try:
-        with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
+        with smtplib.SMTP(smtp.mail.com, 587) as server:
             server.starttls()
-            server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
+            server.login(frostydasnowman00911@mail.com, AtH3nA818!)
             server.send_message(msg)
     except Exception as e:
         app.logger.error(f"Failed to send email: {e}")
 
-def send_sms(message, phone=NOTIFY_PHONE_NUMBER):
-    url = f'https://api.textbee.dev/api/v1/gateway/devices/{SMS_DEVICE_ID}/send-sms'
-    headers = {'x-api-key': SMS_API_KEY}
+def send_sms(message, phone=+17755071747):
+    url = f'https://api.textbee.dev/api/v1/gateway/devices/68d675e53b8a4d33b1cf2c42/send-sms'
+    headers = {'x-api-key': d4b59066-c804-4f3c-a36e-6744b29b4c6a}
     payload = {'recipients': [phone], 'message': message}
     try:
         response = requests.post(url, json=payload, headers=headers)
@@ -178,12 +178,6 @@ def add_review():
     db.execute('INSERT INTO reviews (name, text) VALUES (?, ?)', (name, text))
     db.commit()
 
-    # Send notification emails and SMS
-    send_email('New Review', f'New review from {name}: {text}')
-    send_sms(f'New review from {name}: {text}')
-
-    return jsonify({'name': name, 'text': text}), 201
-
-if __name__ == '__main__':
+    if __name__ == '__main__':
     init_db()
     app.run(debug=True)
