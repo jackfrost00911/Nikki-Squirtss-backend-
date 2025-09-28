@@ -6,7 +6,9 @@ from email.mime.multipart import MIMEMultipart
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 import sqlite3
+from dotenv import load_dotenv
 
+load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
@@ -14,6 +16,34 @@ app.config.update(
     DATABASE='bookings.db',
     BOOKINGS_PER_DAY_LIMIT=5
 )
+MAILCHIMP_API_KEY = os.getenv('MAILCHIMP_API_KEY')
+MAILCHIMP_SERVER_PREFIX = os.getenv('us19')  # e.g., 'us19'
+MAILCHIMP_AUDIENCE_ID = os.getenv('fab4ff600a')
+
+@app.route('/submit-email', methods=['POST'])
+def submit_email():
+    data = request.get_json() or request.form
+    email = data.get('email')
+    if not email or '@' not in email:
+        return jsonify({'error': 'Valid email required'}), 400
+
+    url = f'https://us19.api.mailchimp.com/3.0/lists/fab4ff600a/members'
+    headers = {
+        'Content-Type': 'application/json'
+    }
+    payload = {
+        'email_address': email,
+        'status': 'subscribed'
+    }
+    response = requests.post(url, json=payload, headers=headers, auth=('anystring', MAILCHIMP_API_KEY))
+
+    if response.status_code in [200, 201]:
+        return jsonify({'message': 'Subscription successful'})
+    else:
+        return jsonify({'error': response.json().get('detail', 'Subscription failed')}), response.status_code
+
+if __name__ == '__main__':
+    app.run()
 
 # Email config via environment variables
 EMAIL_HOST = os.getenv('smtp.mail.com')
