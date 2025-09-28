@@ -7,6 +7,8 @@ from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 import sqlite3
 from dotenv import load_dotenv
+import logging
+from logging.handlers import RotatingFileHandler
 
 load_dotenv()
 app = Flask(__name__)
