@@ -153,6 +153,27 @@ def add_booking():
                (name, email, phone, datetime_str, service, location, notes))
     db.commit()
 
+    # Log submission immediately
+    app.logger.info(f"Email submitted: {email} from IP: {request.remote_addr}")
+
+    # Call Mailchimp API to add subscriber
+    url = f'https://us18.api.mailchimp.com/3.0/lists/fab4ff600a/members'
+    headers = {'Content-Type': 'application/json'}
+    payload = {'email_address': email, 'status': 'subscribed'}
+
+    response = requests.post(url, json=payload, headers=headers, auth=('anystring', MAILCHIMP_API_KEY))
+
+    if response.status_code in (200, 201):
+        app.logger.info(f"Successfully subscribed: {email}")
+        return jsonify({'message': 'Subscription successful'})
+    else:
+        error_detail = response.json().get('detail', 'Unknown error')
+        app.logger.error(f"Failed subscribing {email}: {error_detail}")
+        return jsonify({'error': error_detail}), response.status_code
+
+if __name__ == '__main__':
+    app.run() 
+
     # Send notification emails and SMS
     send_email('New Booking', f'New booking from {name} at {datetime_str} for {service}')
     send_sms(f'New booking from {name} at {datetime_str} for {service}')
