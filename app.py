@@ -14,60 +14,33 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Configure logger to write to file with rotation (max 1MB, keep 3 backups)
+# Configure logger with rotation
 handler = RotatingFileHandler('submissions.log', maxBytes=1_000_000, backupCount=3)
 handler.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
 handler.setFormatter(formatter)
 app.logger.addHandler(handler)
+app.logger.setLevel(logging.INFO)
 
 app.config.update(
     DATABASE='bookings.db',
     BOOKINGS_PER_DAY_LIMIT=5
 )
+
 MAILCHIMP_API_KEY = os.getenv('MAILCHIMP_API_KEY')
-MAILCHIMP_SERVER_PREFIX = os.getenv('us18')  # e.g., 'us19'
-MAILCHIMP_AUDIENCE_ID = os.getenv('fab4ff600a')
+MAILCHIMP_SERVER_PREFIX = os.getenv('MAILCHIMP_SERVER_PREFIX', 'us18')
+MAILCHIMP_AUDIENCE_ID = os.getenv('MAILCHIMP_AUDIENCE_ID', 'fab4ff600a')
 
-@app.route('/submit-email', methods=['POST'])
-def submit_email():
-    data = request.get_json() or request.form
-    email = data.get('email')
-    if not email or '@' not in email:
-        return jsonify({'error': 'Valid email required'}), 400
-
-    # Log the submission
-    app.logger.info(f"New email submission: {email} from IP: {request.remote_addr}")
-
-    url = f'https://us18.api.mailchimp.com/3.0/lists/fab4ff600a/members'
-    headers = {
-        'Content-Type': 'application/json'
-    }
-    payload = {
-        'email_address': email,
-        'status': 'subscribed'
-    }
-    response = requests.post(url, json=payload, headers=headers, auth=('anystring', MAILCHIMP_API_KEY))
-
-    if response.status_code in [200, 201]:
-        return jsonify({'message': 'Subscription successful'})
-    else:
-        return jsonify({'error': response.json().get('detail', 'Subscription failed')}), response.status_code
-
-if __name__ == '__main__':
-    app.run()
-
-# Email config via environment variables
-EMAIL_HOST = os.getenv('smtp.mail.com')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.mail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_HOST_USER = os.getenv('frostydasnowman00911@mail.com')
-EMAIL_HOST_PASSWORD = os.getenv('AtH3nA818!')
-NOTIFY_EMAIL_TO = os.getenv('frostydasnowman00811@mail.com')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+NOTIFY_EMAIL_TO = os.getenv('NOTIFY_EMAIL_TO')
 
-# SMS gateway config from Android SMS Gateway provider
-SMS_API_KEY = os.getenv('d4b59066-c804-4f3c-a36e-6744b29b4c6a')
-SMS_DEVICE_ID = os.getenv('68d675e53b8a4d33b1cf2c42')
-NOTIFY_PHONE_NUMBER = os.getenv('+17755071747')
+SMS_API_KEY = os.getenv('SMS_API_KEY')
+SMS_DEVICE_ID = os.getenv('SMS_DEVICE_ID')
+NOTIFY_PHONE_NUMBER = os.getenv('NOTIFY_PHONE_NUMBER')
+
 
 def get_db():
     if 'db' not in g:
@@ -75,11 +48,13 @@ def get_db():
         g.db.row_factory = sqlite3.Row
     return g.db
 
+
 @app.teardown_appcontext
 def close_db(exception):
     db = g.pop('db', None)
     if db is not None:
         db.close()
+
 
 def init_db():
     with app.app_context():
@@ -108,30 +83,51 @@ def init_db():
         ''')
         db.commit()
 
-def send_email(subject, body, to_email=frostydasnowman00911@mail.com):
+
+def send_email(subject, body, to_email=NOTIFY_EMAIL_TO):
     msg = MIMEMultipart()
-    msg['From'] = frostydasnowman00911@mail.com
+    msg['From'] = EMAIL_HOST_USER
     msg['To'] = to_email
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
     try:
-        with smtplib.SMTP(smtp.mail.com, 587) as server:
+        with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
             server.starttls()
-            server.login(frostydasnowman00911@mail.com, AtH3nA818!)
+            server.login(EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)
             server.send_message(msg)
     except Exception as e:
-        app.logger.error(f"Failed to send email: {e}")
+        app.logger.error(f'Failed to send email: {e}')
 
-def send_sms(message, phone=+17755071747):
-    url = f'https://api.textbee.dev/api/v1/gateway/devices/68d675e53b8a4d33b1cf2c42/send-sms'
-    headers = {'x-api-key': d4b59066-c804-4f3c-a36e-6744b29b4c6a}
+
+def send_sms(message, phone=NOTIFY_PHONE_NUMBER):
+    url = f'https://api.textbee.dev/api/v1/gateway/devices/{SMS_DEVICE_ID}/send-sms'
+    headers = {'x-api-key': SMS_API_KEY}
     payload = {'recipients': [phone], 'message': message}
     try:
         response = requests.post(url, json=payload, headers=headers)
         if not response.ok:
-            app.logger.error(f"SMS sending failed: {response.text}")
+            app.logger.error(f'SMS sending failed: {response.text}')
     except Exception as e:
-        app.logger.error(f"SMS sending exception: {e}")
+        app.logger.error(f'SMS sending exception: {e}')
+
+
+@app.route('/submit-email', methods=['POST'])
+def submit_email():
+    data = request.get_json() or request.form
+    email = data.get('email')
+    if not email or '@' not in email:
+        return jsonify({'error': 'Valid email required'}), 400
+
+    app.logger.info(f'New email submission: {email} from IP: {request.remote_addr}')
+    url = f'https://{MAILCHIMP_SERVER_PREFIX}.api.mailchimp.com/3.0/lists/{MAILCHIMP_AUDIENCE_ID}/members'
+    headers = {'Content-Type': 'application/json'}
+    payload = {'email_address': email, 'status': 'subscribed'}
+    response = requests.post(url, json=payload, headers=headers, auth=('anystring', MAILCHIMP_API_KEY))
+    if response.status_code in [200, 201]:
+        return jsonify({'message': 'Subscription successful'})
+    else:
+        return jsonify({'error': response.json().get('detail', 'Subscription failed')}), response.status_code
+
 
 @app.route('/api/bookings', methods=['POST'])
 def add_booking():
@@ -153,32 +149,25 @@ def add_booking():
                (name, email, phone, datetime_str, service, location, notes))
     db.commit()
 
-    # Log submission immediately
-    app.logger.info(f"Email submitted: {email} from IP: {request.remote_addr}")
+    app.logger.info(f'Booking from {email} from IP: {request.remote_addr}')
 
-    # Call Mailchimp API to add subscriber
-    url = f'https://us18.api.mailchimp.com/3.0/lists/fab4ff600a/members'
+    # Mailchimp subscription
+    url = f'https://{MAILCHIMP_SERVER_PREFIX}.api.mailchimp.com/3.0/lists/{MAILCHIMP_AUDIENCE_ID}/members'
     headers = {'Content-Type': 'application/json'}
     payload = {'email_address': email, 'status': 'subscribed'}
-
     response = requests.post(url, json=payload, headers=headers, auth=('anystring', MAILCHIMP_API_KEY))
-
     if response.status_code in (200, 201):
-        app.logger.info(f"Successfully subscribed: {email}")
-        return jsonify({'message': 'Subscription successful'})
+        app.logger.info(f'Successfully subscribed: {email}')
     else:
         error_detail = response.json().get('detail', 'Unknown error')
-        app.logger.error(f"Failed subscribing {email}: {error_detail}")
-        return jsonify({'error': error_detail}), response.status_code
+        app.logger.error(f'Failed subscribing {email}: {error_detail}')
 
-if __name__ == '__main__':
-    app.run() 
-
-    # Send notification emails and SMS
+    # Send notifications
     send_email('New Booking', f'New booking from {name} at {datetime_str} for {service}')
     send_sms(f'New booking from {name} at {datetime_str} for {service}')
 
     return jsonify({'message': 'Booking added successfully'}), 201
+
 
 @app.route('/api/reviews', methods=['GET'])
 def get_reviews():
@@ -186,6 +175,7 @@ def get_reviews():
     cursor = db.execute('SELECT name, text, created_at FROM reviews ORDER BY created_at DESC')
     reviews = [dict(row) for row in cursor.fetchall()]
     return jsonify(reviews)
+
 
 @app.route('/api/reviews', methods=['POST'])
 def add_review():
@@ -198,7 +188,9 @@ def add_review():
     db = get_db()
     db.execute('INSERT INTO reviews (name, text) VALUES (?, ?)', (name, text))
     db.commit()
+    return jsonify({'message': 'Review added successfully'}), 201
 
-    if __name__ == '__main__':
+
+if __name__ == '__main__':
     init_db()
     app.run(debug=True)
