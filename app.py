@@ -190,6 +190,19 @@ def add_review():
     db.commit()
     return jsonify({'message': 'Review added successfully'}), 201
 
+@app.route('/api/reviews', methods=['POST'])
+def add_review():
+    data = request.json
+    name = data.get('name', '').strip()
+    text = data.get('text', '').strip()
+    if not name or not text:
+        return jsonify({'error': 'Name and text are required'}), 400
+
+    db = get_db()
+    db.execute('INSERT INTO reviews (name, text) VALUES (?, ?)', (name, text))
+    db.commit()
+    return jsonify({'message': 'Review added successfully'}), 201
+
 
 if __name__ == '__main__':
     init_db()
