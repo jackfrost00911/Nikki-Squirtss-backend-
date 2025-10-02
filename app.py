@@ -231,8 +231,6 @@ def add_review():
         return jsonify({'error': str(e)}), 500
 
 
-if __name__ == '__main__':
-    init_db()
     if __name__ == '__main__':
     # TEMPORARY: Add rating column if it doesn't exist
     with app.app_context():
@@ -245,5 +243,4 @@ if __name__ == '__main__':
             app.logger.info(f'Rating column already exists or error: {e}')
     
     init_db()
-    app.run(debug=True)
     app.run(debug=True)
