@@ -229,7 +229,30 @@ def add_review():
     except Exception as e:
         app.logger.error(f'Error adding review: {e}')
         return jsonify({'error': str(e)}), 500
-
+# TEMPORARY ADMIN ROUTE - Delete after using
+@app.route('/admin/fix-reviews-table', methods=['GET'])
+def fix_reviews_table():
+    """Add rating column to reviews table"""
+    try:
+        db = get_db()
+        
+        # Check if column exists
+        cursor = db.execute("PRAGMA table_info(reviews)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'rating' in columns:
+            return jsonify({'message': 'Rating column already exists!'}), 200
+        
+        # Add the rating column
+        db.execute('ALTER TABLE reviews ADD COLUMN rating INTEGER NOT NULL DEFAULT 5')
+        db.commit()
+        
+        app.logger.info('✅ Successfully added rating column')
+        return jsonify({'message': 'SUCCESS: Rating column added to reviews table!'}), 200
+        
+    except Exception as e:
+        app.logger.error(f'Error adding rating column: {e}')
+        return jsonify({'error': str(e)}), 500
 
     if __name__ == '__main__':
     init_db()
