@@ -14,43 +14,6 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# ========== TEMPORARY CODE - RUN ONCE THEN DELETE ==========
-def add_rating_column():
-    """Add rating column to reviews table if it doesn't exist"""
-    try:
-        cursor = conn.cursor()
-        
-        # Check if column already exists
-        cursor.execute("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name='reviews' AND column_name='rating';
-        """)
-        
-        if cursor.fetchone() is None:
-            # Column doesn't exist, add it
-            cursor.execute("""
-                ALTER TABLE reviews 
-                ADD COLUMN rating INTEGER NOT NULL DEFAULT 5;
-            """)
-            conn.commit()
-            print("✅ SUCCESS: Rating column added to reviews table!")
-        else:
-            print("ℹ️  Rating column already exists")
-        
-        cursor.close()
-        return True
-        
-    except Exception as e:
-        print(f"❌ ERROR adding rating column: {e}")
-        conn.rollback()
-        return False
-
-# Run the function when app starts
-print("Checking database schema...")
-add_rating_column()
-# ========== END TEMPORARY CODE ==========
-
 # Configure logger with rotation
 handler = RotatingFileHandler('submissions.log', maxBytes=1_000_000, backupCount=3)
 handler.setLevel(logging.INFO)
