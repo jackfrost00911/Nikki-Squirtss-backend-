@@ -233,4 +233,17 @@ def add_review():
 
 if __name__ == '__main__':
     init_db()
+    if __name__ == '__main__':
+    # TEMPORARY: Add rating column if it doesn't exist
+    with app.app_context():
+        db = get_db()
+        try:
+            db.execute('ALTER TABLE reviews ADD COLUMN rating INTEGER NOT NULL DEFAULT 5')
+            db.commit()
+            app.logger.info('✅ Added rating column to reviews table')
+        except Exception as e:
+            app.logger.info(f'Rating column already exists or error: {e}')
+    
+    init_db()
+    app.run(debug=True)
     app.run(debug=True)
