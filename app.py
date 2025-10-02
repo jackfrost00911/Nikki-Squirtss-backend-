@@ -29,9 +29,9 @@ app.config.update(
 
 MAILCHIMP_API_KEY = os.getenv('MAILCHIMP_API_KEY')
 MAILCHIMP_SERVER_PREFIX = os.getenv('MAILCHIMP_SERVER_PREFIX', 'us18')
-MAILCHIMP_AUDIENCE_ID = os.getenv('MAILCHIMP_AUDIENCE_ID', 'fab4ff600a')
+MAILCHIMP_AUDIENCE_ID = os.getenv('MAILCHIMP_AUDIENCE_ID')
 
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.mail.com')
+EMAIL_HOST = os.getenv('EMAIL_HOST',)
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
@@ -176,7 +176,38 @@ def get_reviews():
     reviews = [dict(row) for row in cursor.fetchall()]
     return jsonify(reviews)
 
-
+@app.route('/api/reviews', methods=['POST'])
+def add_review():
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    text = data.get('text', '').strip()
+    rating = data.get('rating')  # NEW: Get rating value
+    
+    if not name or rating is None:
+        return jsonify({'error': 'Name and rating are required'}), 400
+    
+    if not isinstance(rating, int) or rating < 1 or rating > 5:
+        return jsonify({'error': 'Rating must be between 1 and 5'}), 400
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO reviews (name, text, rating, created_at) VALUES (%s, %s, %s, NOW()) RETURNING id, name, text, rating, created_at',
+            (name, text, rating)
+        )
+        new_review = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+        
+        return jsonify({
+            'id': new_review[0],
+            'name': new_review[1],
+            'text': new_review[2],
+            'rating': new_review[3],
+            'created_at': new_review[4].isoformat()
+        }), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 @app.route('/api/reviews', methods=['POST'])
 def add_review():
     data = request.json
