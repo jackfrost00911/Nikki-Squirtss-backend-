@@ -31,7 +31,7 @@ MAILCHIMP_API_KEY = os.getenv('MAILCHIMP_API_KEY')
 MAILCHIMP_SERVER_PREFIX = os.getenv('MAILCHIMP_SERVER_PREFIX', 'us18')
 MAILCHIMP_AUDIENCE_ID = os.getenv('MAILCHIMP_AUDIENCE_ID')
 
-EMAIL_HOST = os.getenv('EMAIL_HOST',)
+EMAIL_HOST = os.getenv('EMAIL_HOST')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
@@ -77,11 +77,13 @@ def init_db():
             CREATE TABLE IF NOT EXISTS reviews (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                text TEXT NOT NULL,
+                text TEXT,
+                rating INTEGER NOT NULL DEFAULT 5,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         db.commit()
+        app.logger.info('✅ Database initialized with reviews table including rating column')
 
 
 def send_email(subject, body, to_email=NOTIFY_EMAIL_TO):
@@ -169,70 +171,64 @@ def add_booking():
     return jsonify({'message': 'Booking added successfully'}), 201
 
 
+# GET all reviews
 @app.route('/api/reviews', methods=['GET'])
 def get_reviews():
     db = get_db()
-    cursor = db.execute('SELECT name, text, created_at FROM reviews ORDER BY created_at DESC')
-    reviews = [dict(row) for row in cursor.fetchall()]
+    cursor = db.execute('SELECT id, name, text, rating, created_at FROM reviews ORDER BY created_at DESC')
+    reviews = []
+    for row in cursor.fetchall():
+        reviews.append({
+            'id': row['id'],
+            'name': row['name'],
+            'text': row['text'],
+            'rating': row['rating'],
+            'created_at': row['created_at']
+        })
     return jsonify(reviews)
 
+
+# POST new review
 @app.route('/api/reviews', methods=['POST'])
 def add_review():
-    data = request.get_json()
+    data = request.json
     name = data.get('name', '').strip()
     text = data.get('text', '').strip()
-    rating = data.get('rating')  # NEW: Get rating value
+    rating = data.get('rating')
     
-    if not name or rating is None:
-        return jsonify({'error': 'Name and rating are required'}), 400
+    # Validation
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+    
+    if rating is None:
+        return jsonify({'error': 'Rating is required'}), 400
     
     if not isinstance(rating, int) or rating < 1 or rating > 5:
         return jsonify({'error': 'Rating must be between 1 and 5'}), 400
-    
+
     try:
-        cursor = conn.cursor()
-        cursor.execute(
-            'INSERT INTO reviews (name, text, rating, created_at) VALUES (%s, %s, %s, NOW()) RETURNING id, name, text, rating, created_at',
+        db = get_db()
+        cursor = db.execute(
+            'INSERT INTO reviews (name, text, rating) VALUES (?, ?, ?)',
             (name, text, rating)
         )
-        new_review = cursor.fetchone()
-        conn.commit()
-        cursor.close()
+        db.commit()
+        
+        # Get the newly created review
+        new_id = cursor.lastrowid
+        new_review = db.execute('SELECT id, name, text, rating, created_at FROM reviews WHERE id = ?', (new_id,)).fetchone()
         
         return jsonify({
-            'id': new_review[0],
-            'name': new_review[1],
-            'text': new_review[2],
-            'rating': new_review[3],
-            'created_at': new_review[4].isoformat()
+            'id': new_review['id'],
+            'name': new_review['name'],
+            'text': new_review['text'],
+            'rating': new_review['rating'],
+            'created_at': new_review['created_at']
         }), 201
+        
     except Exception as e:
+        app.logger.error(f'Error adding review: {e}')
         return jsonify({'error': str(e)}), 500
-@app.route('/api/reviews', methods=['POST'])
-def add_review():
-    data = request.json
-    name = data.get('name', '').strip()
-    text = data.get('text', '').strip()
-    if not name or not text:
-        return jsonify({'error': 'Name and text are required'}), 400
-
-    db = get_db()
-    db.execute('INSERT INTO reviews (name, text) VALUES (?, ?)', (name, text))
-    db.commit()
-    return jsonify({'message': 'Review added successfully'}), 201
-
-@app.route('/api/reviews', methods=['POST'])
-def add_review():
-    data = request.json
-    name = data.get('name', '').strip()
-    text = data.get('text', '').strip()
-    if not name or not text:
-        return jsonify({'error': 'Name and text are required'}), 400
-
-    db = get_db()
-    db.execute('INSERT INTO reviews (name, text) VALUES (?, ?)', (name, text))
-    db.commit()
-    return jsonify({'message': 'Review added successfully'}), 201
 
 
 if __name__ == '__main__':
