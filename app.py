@@ -114,51 +114,6 @@ def send_email_notification(subject, body):
 
 # Email submission endpoint (your existing one)
 @app.route('/submit-email', methods=['POST'])
-def submit_email():
-    try:
-        email = request.form.get('email')
-        
-        if not email:
-            return "Email is required", 400
-        
-        # Store in database
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            INSERT INTO email_subscribers (email, subscribed_at)
-            VALUES (%s, %s)
-            ON CONFLICT (email) DO NOTHING
-        """, (email, datetime.now()))
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        # Add to MailChimp
-        add_to_mailchimp(email, "VIP", "Subscriber")
-        
-        # Redirect back to homepage with success message
-        return redirect('/?success=subscribed')
-        
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return f"Error: {str(e)}", 500
-
-# NEW: Booking submission endpoint with notifications
-@app.route('/submit-booking', methods=['POST'])
-def submit_booking():
-    try:
-        # Get all form data
-        first_name = request.form.get('firstName')
-        last_name = request.form.get('lastName', '')
-        email = request.form.get('email')
-        phone = request.form.get('phone')
-        service = request.form.get('service')
-        date = request.form.get('date')
-        time = request.form.get('time')
-        location = request.form.get('location', '')
-        message = request.form.get('message', '')
         
         # Validate required fields
         if not all([first_name, email, phone, service, date, time]):
