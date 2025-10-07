@@ -234,7 +234,94 @@ Check dashboard for details."""
     except Exception as e:
         print(f"Booking error: {str(e)}")
         return f"Error submitting booking: {str(e)}", 500
+@app.route('/submit-booking', methods=['POST'])
+def submit_booking():
+    try:
+        # Change from request.form to request.json
+        data = request.json  # ← Get JSON data
+        
+        first_name = data.get('firstName')
+        last_name = data.get('lastName', '')
+        email = data.get('email')
+        phone = data.get('phone')
+        service = data.get('service')
+        date = data.get('date')
+        time = data.get('time')
+        location = data.get('location', '')
+        message = data.get('message', '')
+        
+        # Validate required fields
+        if not all([first_name, email, phone, service, date, time]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Store in database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO bookings 
+            (first_name, last_name, email, phone, service, booking_date, booking_time, location, message, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (first_name, last_name, email, phone, service, date, time, location, message, datetime.now()))
+        
+        booking_id = cursor.fetchone()[0]
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        # Add to MailChimp
+        add_to_mailchimp(email, first_name, last_name)
+        
+        # Send SMS notification
+        sms_message = f"""🔔 NEW BOOKING #{booking_id}
+        
+Name: {first_name} {last_name}
+Phone: {phone}
+Service: {service}
+Date: {date} at {time}
+Location: {location}
 
+Check dashboard for details."""
+        
+        send_sms_notification(sms_message)
+        
+        # Send email notification
+        email_subject = f"🔔 New Booking Request #{booking_id} - {first_name} {last_name}"
+        email_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #333;">
+            <h2 style="color: #d35a9a;">New Booking Request Received</h2>
+            <div style="background: #f5f5f5; padding: 20px; border-radius: 8px;">
+                <p><strong>Booking ID:</strong> #{booking_id}</p>
+                <p><strong>Name:</strong> {first_name} {last_name}</p>
+                <p><strong>Email:</strong> {email}</p>
+                <p><strong>Phone:</strong> {phone}</p>
+                <p><strong>Service:</strong> {service}</p>
+                <p><strong>Date:</strong> {date}</p>
+                <p><strong>Time:</strong> {time}</p>
+                <p><strong>Location:</strong> {location}</p>
+                <p><strong>Special Requests:</strong><br>{message if message else 'None'}</p>
+                <p><strong>Submitted:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        send_email_notification(email_subject, email_body)
+        
+        # Return JSON success response (not redirect since it's AJAX)
+        return jsonify({
+            'success': True,
+            'bookingId': booking_id,
+            'message': 'Booking request submitted successfully'
+        }), 200
+        
+    except Exception as e:
+        print(f"Booking error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+        
 # Get all bookings (for admin view)
 @app.route('/api/bookings', methods=['GET'])
 def get_bookings():
