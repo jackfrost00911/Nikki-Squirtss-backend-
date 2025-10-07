@@ -13,6 +13,10 @@ CORS(app)
 
 # Environment variables - Set these in your Render dashboard
 DATABASE_URL = os.environ.get('DATABASE_URL')
+# Fix Render's postgres:// to postgresql:// for psycopg2
+if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    
 MAILCHIMP_API_KEY = os.environ.get('MAILCHIMP_API_KEY')
 MAILCHIMP_SERVER = os.environ.get('MAILCHIMP_SERVER')
 MAILCHIMP_LIST_ID = os.environ.get('MAILCHIMP_LIST_ID')
@@ -22,6 +26,7 @@ YOUR_PHONE_NUMBER = os.environ.get('YOUR_PHONE_NUMBER')
 YOUR_EMAIL = os.environ.get('YOUR_EMAIL')
 SMTP_EMAIL = os.environ.get('SMTP_EMAIL')
 SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')
+
 
 def get_db_connection():
     """Create database connection"""
